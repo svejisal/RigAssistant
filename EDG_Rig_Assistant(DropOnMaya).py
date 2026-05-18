@@ -29,9 +29,10 @@ def create_shelf_button():
     button_command = """
 try:
     from PySide6 import QtWidgets, QtCore, QtGui
-    from PySide6.QtWidgets import QMainWindow, QWidget, QApplication, QDialog, QGridLayout, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QTabWidget, QLabel, QLineEdit, QGroupBox, QDoubleSpinBox, QColorDialog, QButtonGroup, QRadioButton, QSlider, QTextEdit, QDialogButtonBox
+    from PySide6.QtWidgets import QMainWindow, QWidget, QApplication, QDialog, QGridLayout, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QTabWidget, QLabel, QLineEdit, QGroupBox, QDoubleSpinBox, QSpinBox, QColorDialog, QButtonGroup, QRadioButton, QSlider, QTextEdit, QDialogButtonBox, QCheckBox, QComboBox
     from PySide6.QtGui import QColor, QPixmap, QFont, QDrag
     from PySide6.QtCore import Qt, QByteArray, QMimeData, QTimer
+    from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
     import base64
     import os
     import pickle
@@ -41,9 +42,10 @@ try:
     import maya.mel as mel
 except ImportError:
     from PySide2 import QtWidgets, QtCore, QtGui
-    from PySide2.QtWidgets import QMainWindow, QWidget, QApplication, QDialog, QGridLayout, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QTabWidget, QLabel, QLineEdit, QGroupBox, QDoubleSpinBox, QColorDialog, QButtonGroup, QRadioButton, QSlider, QTextEdit, QDialogButtonBox
+    from PySide2.QtWidgets import QMainWindow, QWidget, QApplication, QDialog, QGridLayout, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QTabWidget, QLabel, QLineEdit, QGroupBox, QDoubleSpinBox, QSpinBox, QColorDialog, QButtonGroup, QRadioButton, QSlider, QTextEdit, QDialogButtonBox, QCheckBox, QComboBox
     from PySide2.QtGui import QColor, QPixmap, QFont, QDrag
     from PySide2.QtCore import Qt, QByteArray, QMimeData, QTimer
+    from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
     import base64
     import os
     import pickle
@@ -130,7 +132,7 @@ class DraggableButton(QtWidgets.QPushButton):
                 layout.insertWidget(source_index, target_button)
                 layout.insertWidget(target_index, source_button)
 
-class EDG707_002(QMainWindow):
+class EDG707_002(MayaQWidgetDockableMixin, QMainWindow):
     def __init__(self):
         super(EDG707_002, self).__init__(get_maya_window())
         
@@ -139,8 +141,8 @@ class EDG707_002(QMainWindow):
         self.dist_spinBox_UI = CreatePoleV()
         
         #Setup the UI
+        self.adjustSize()
         self.setWindowTitle("Rig Assistant")
-        self.setMaximumSize(400, 600)
         self.setWindowFlag(Qt.WindowType.Tool)
 
         central_widget = QWidget()
@@ -165,7 +167,7 @@ class EDG707_002(QMainWindow):
         #Tab 1
         tab_1 = QWidget()
         tab1_layout = QVBoxLayout(tab_1)
-        
+        #EMOJIS
         emoji_leg = base64.b64decode("8J+mvw==").decode("utf-8")  # ??
         emoji_bone = base64.b64decode("8J+mtA==").decode("utf-8")  # ??
         emoji_ribbon = base64.b64decode("8J+Ol++4jw==").decode("utf-8")  # ???
@@ -173,6 +175,16 @@ class EDG707_002(QMainWindow):
         emoji_controller = base64.b64decode("8J+Org==").decode("utf-8") # ??
         emoji_folder_closed = base64.b64decode("8J+TgQ==").decode("utf-8") # ??
         emoji_color_palette = base64.b64decode("8J+OqA==").decode("utf-8") # ??
+        
+        #AUTORIG
+        AutoRig_GRP = QGroupBox("AUTORIG")
+        AutoRig_GRP.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        AutoRig_GRP_layout = QVBoxLayout(AutoRig_GRP)
+        AutoRig_btn = QPushButton("AUTORIG MANIPULATOR")
+        AutoRig_GRP_layout.addWidget(AutoRig_btn)
+        AutoRig_btn.clicked.connect(self.AutoRig_call)
+        tab1_layout.addWidget(AutoRig_GRP)
         
         #
         jnt_manip_grp = QGroupBox("Joint's Manipulators")
@@ -452,6 +464,11 @@ class EDG707_002(QMainWindow):
         self.rib_wid.setWindowFlags(Qt.WindowType.Window)
         self.rib_wid.show()
 
+    def AutoRig_call(self):
+        self.rig_widg = AutoRig(self)
+        self.rig_widg.setWindowFlags(Qt.WindowType.Window)
+        self.rig_widg.show()
+
     def show_Rename_Manip(self):
 
         self.ren_wid = Rename_Manip(self)
@@ -508,17 +525,18 @@ class EDG707_002(QMainWindow):
         
     def toggle_Axis_Display_Joints(self):
         cmds.undoInfo(openChunk=True)
-        jointList = cmds.ls(sl=1, type="joint")
-		
-        if len(jointList) == 0:
-            jointList = cmds.ls(type="joint")
-        for jnt in jointList:
-            currentStateJnts = cmds.getAttr(jnt + ".displayLocalAxis")
-            cmds.setAttr(jnt + ".displayLocalAxis", not currentStateJnts)
+        
+        sel = cmds.ls(sl=True)
+
+        for i in sel:
+            currentSit = cmds.getAttr(i + ".displayLocalAxis")
+            cmds.setAttr(i + ".displayLocalAxis", not currentSit)
             
         cmds.undoInfo(closeChunk=True)
         
     def on_axis_vis_double_click(self, event):
+        cmds.undoInfo(openChunk=True)
+        
         jointList = cmds.ls(type="joint")
         if jointList:
             currentStateJnts = cmds.getAttr(jointList[0] + ".displayLocalAxis")
@@ -526,6 +544,8 @@ class EDG707_002(QMainWindow):
             for jnt in jointList:
                 cmds.setAttr(jnt + ".displayLocalAxis", not currentStateJnts)
             event.accept()
+            
+        cmds.undoInfo(closeChunk=True)
         
     def create_IK(self):
         fSel = cmds.ls(sl=1, type="joint")
@@ -548,7 +568,7 @@ class EDG707_002(QMainWindow):
 
 
         sel = cmds.ls(sl=1)
-        selMult = cmds.ls(sl=1, type="joint")
+        selMult = cmds.ls(sl=1)
         ikSel = cmds.ls(sl=1, type="ikHandle")
 
         if len(ikSel) > 0:
@@ -594,7 +614,7 @@ class EDG707_002(QMainWindow):
             grp3 = cmds.group(grp2, n=i+"_topGr")
             cnstr = cmds.parentConstraint(i, grp3, mo=0)
             cmds.delete(cnstr)
-            par = cmds.parent(i, grp1)
+            cmds.parent(i, grp1)
 
         if not sel:
             grp1 = cmds.group(em=1, n="null_xform")
@@ -730,6 +750,7 @@ class CustomTextEdit(QTextEdit):
 class CreatePoleV(QDialog):
     def __init__(self, parent=None):
         super(CreatePoleV, self).__init__(parent)
+        self.setWindowTitle("PoleVecor Creator")
         self.poleV_layout = QVBoxLayout(self)
         
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
@@ -747,8 +768,9 @@ class CreatePoleV(QDialog):
         self.dialog_btn_box_poleV.accepted.connect(self.create_PoleVector)
         self.dialog_btn_box_poleV.rejected.connect(self.reject)
         self.poleV_layout.addWidget(self.dialog_btn_box_poleV)
-        
-    def find_perf_vect(self):
+    
+    @staticmethod
+    def find_perf_vect(dist_multiplier):
         sel = cmds.ls(sl=1, type="joint")
 
         #Joints' vector
@@ -770,8 +792,6 @@ class CreatePoleV(QDialog):
         length = sum(perpendicular[i] **2 for i in range(3)) ** 0.5
         normalized_perpendicular = [perpendicular[i] / length for i in range(3)]
         
-        dist_multiplier = self.dist_spinBox.value() #You can change this value, if you think that distance from pole vector and leg doesn't fit you
-        
         pole_Vec_Pos = [s_Vec[i] + normalized_perpendicular[i] * dist_multiplier for i in range(3)]
         return pole_Vec_Pos
 
@@ -785,7 +805,7 @@ class CreatePoleV(QDialog):
             cmds.warning("Please select 3 joints and 1 ikHandle!")
             return
 
-        pole_Vec_Pos = self.find_perf_vect()
+        pole_Vec_Pos = self.find_perf_vect(self.dist_spinBox.value())
 
         crcl = cmds.circle(n=f"PoleV_CTRL", nr=(0,1,0), c=(0,0,0))
         grp1 = cmds.group(crcl, n="PoleV_xform")
@@ -993,6 +1013,8 @@ class Rename_Manip(QWidget):
         self.ok_btn.clicked.connect(self.rename_selected)
 
     def rename_selected(self):
+        cmds.undoInfo(openChunk=True)
+        
         search_text = self.txt_1.text()
         replace_text = self.txt_2.text()
         
@@ -1022,14 +1044,518 @@ class Rename_Manip(QWidget):
         
         cmds.warning(f"SUMMARY: Renamed {len(renamed_obj)} of {len(sel)} objects!")
         self.close()
+        cmds.undoInfo(closeChunk=True)
+    
+class AutoRig(MayaQWidgetDockableMixin, QWidget):
+    def __init__(self, parent=None):
+        super(AutoRig, self).__init__(parent)
+        ###SETUP###
+        self.setWindowTitle("AutoRig")
+        self.adjustSize()
+        #self.setFixedSize(self.sizeHint())
+        
+        self.setWindowFlag(Qt.Tool)
+        self.IK_tool_layout = QVBoxLayout()
+        
+        frame = QFrame()
+        frame.setFrameShape(QFrame.Shape.StyledPanel)
+        frame_layout = QVBoxLayout(frame)
+        self.IK_tool_layout.addWidget(frame)
+        
+        group_001 = QGroupBox("AUTORIG")
+        group_001.setStyleSheet("QGroupBox {font-weight: bold;}")
+        
+        frame_layout.addWidget(group_001)
+        group_001_layout = QVBoxLayout(group_001)
+        group_001_layout.setSpacing(10)
+        
+        text_000 = QLabel("<i>PLEASE RENAME CONTROLLERS, JOINTS<br> AND ITS GROUPS BEFORE APPLYING AGIAN</i>")
+        text_000.setAlignment(Qt.AlignCenter)
+        group_001_layout.addWidget(text_000)
+        
+        check_btns = QHBoxLayout()
+        group_001_layout.addLayout(check_btns)
+        #FK CHECK
+        self.FK_btn = QCheckBox("FK Create")
+        self.FK_btn.setChecked(True)
+        
+        check_btns.addWidget(self.FK_btn)
+        
+        #ADAPTIVE SIZE
+        self.adaptive_Size = QCheckBox("Adaptive Size")
+        self.adaptive_Size.setChecked(True)
+        
+        check_btns.addWidget(self.adaptive_Size)
+        
+        #CREATE POLE VECTOR
+        self.poleV_create = QCheckBox("PoleV")
+        self.poleV_create.setChecked(True)
+        
+        check_btns.addWidget(self.poleV_create)
+        
+        #IK CHECK
+        RadioButton_layout = QHBoxLayout()
+        group_001_layout.addLayout(RadioButton_layout)
+        self.IK_spline_rad = QRadioButton("IK Spline")
+        self.IK_reg_rad = QRadioButton("IK Regular")
+        self.IK_spline_rad.setChecked(True)
+        
+        RadioButton_layout.addWidget(self.IK_spline_rad)
+        RadioButton_layout.addWidget(self.IK_reg_rad)
+        
+        #DISTANCE OF CONTROLLER
+        text_001 = QLabel("Set <b>MAIN CONTROLLER</b> distance:")
+        group_001_layout.addWidget(text_001)
+        
+        #combo
+        distContr_layout = QHBoxLayout()
+        group_001_layout.addLayout(distContr_layout)
+        
+        self.control_xyz_combo = QComboBox()
+        self.control_xyz_combo.addItem("X")
+        self.control_xyz_combo.addItem("Y")
+        self.control_xyz_combo.addItem("Z")
+        self.control_xyz_combo.setCurrentIndex(0)
+        
+        #distance
+        self.dist_box = QDoubleSpinBox()
+        self.dist_box.setRange(-1000, 1000)
+        self.dist_box.setValue(5)
+        
+        distContr_layout.addWidget(self.control_xyz_combo)
+        distContr_layout.addWidget(self.dist_box)
+        
+        #PoleV Distance
+        text_003 = QLabel("Distance of <b>POLE VECTOR</b>")
+        self.poleV_dist = QDoubleSpinBox()
+        self.poleV_dist.setRange(-1000, 1000)
+        self.poleV_dist.setValue(5)
+        
+        group_001_layout.addWidget(text_003)
+        group_001_layout.addWidget(self.poleV_dist)
+        
+        #stretch
+        text_002 = QLabel("<b>STRETCH</b> joints along:")
+        group_001_layout.addWidget(text_002)
+        
+        self.stretch_combo = QComboBox()
+        self.stretch_combo.addItem("X")
+        self.stretch_combo.addItem("Y")
+        self.stretch_combo.addItem("Z")
+        self.stretch_combo.setCurrentIndex(0)
+        
+        group_001_layout.addWidget(self.stretch_combo)
+        
+        #SPANS
+        self.text_003 = QLabel("Number of <b>SPANS</b>:")
+        group_001_layout.addWidget(self.text_003)
+        
+        self.spans = QSpinBox()
+        self.spans.setValue(1)
+        group_001_layout.addWidget(self.spans)
+        
+        self.setLayout(self.IK_tool_layout)
 
+        # Connect signals to slot
+        self.IK_spline_rad.toggled.connect(self.update_visibility)
+        self.IK_reg_rad.toggled.connect(self.update_visibility)
+        
+        create_btn = QPushButton("CREATE RIG")
+        create_btn.setStyleSheet("QPushButton {font-weight: bold;}")
+        group_001_layout.addWidget(create_btn)
+        create_btn.clicked.connect(self.create_Rig)
 
+        # Initial state
+        self.update_visibility()
 
-def show_window():
-    window = EDG707_002()
-    window.show()
+    def update_visibility(self):
+        if self.IK_spline_rad.isChecked():
+            self.text_003.show()
+            self.spans.show()
+            self.adaptive_Size.hide()
+            self.poleV_dist.hide()
+            self.poleV_create.hide()
+        else:
+            self.text_003.hide()
+            self.spans.hide()
+            self.adaptive_Size.show()
+            self.poleV_dist.show()
+            self.poleV_create.show()
 
-show_window()
+    def temp_constraint(self, controller, joint):
+        temp = cmds.parentConstraint(joint, controller)
+        cmds.delete(temp)
+
+    def create_Rig(self):
+        cmds.undoInfo(openChunk=True)
+        
+        sel = cmds.ls(sl=True)
+        jnt_sel = []
+        
+        for i in sel:
+            cmds.listRelatives(i, type="joint")
+            jnt_sel.append(i)
+            
+        if len(jnt_sel) >=2:
+            #ADDITIONAL
+            init_jnt_radius = cmds.getAttr(jnt_sel[0]+".radius")
+            
+            #FK SETUP
+            cmds.select(d=True)
+            if self.FK_btn.isChecked():
+                #FK_DUPLICATE_JOINTS
+                
+                jnt_FK_dupl = cmds.duplicate(jnt_sel, parentOnly=True, renameChildren=True)
+                circle_FK_list = []
+                for i in jnt_FK_dupl:
+                    cmds.setAttr(i+".radius", init_jnt_radius*1.5)
+                    FK_control=cmds.circle(nr=[0,1,0], n="CTRL_FK_001", r=init_jnt_radius*2)
+                    self.temp_constraint(FK_control, i)
+                    cmds.parentConstraint(FK_control, i)
+                    circle_FK_list.append(FK_control[0])
+                    
+                circle_FK_topGr_list = []
+                for i in circle_FK_list:
+                    grp1 = cmds.group(em=1, n=i+"_xform")
+                    grp2 = cmds.group(grp1, n=i+"_adj")
+                    grp3 = cmds.group(grp2, n=i+"_topGr")
+                    cnstr = cmds.parentConstraint(i, grp3, mo=0)
+                    cmds.delete(cnstr)
+                    cmds.parent(i, grp1)
+                    circle_FK_topGr_list.append(grp3)
+                
+            
+            #IK_DUPLICATE_JOINTS
+            cmds.select(d=True)
+            jnt_IK_dupl = cmds.duplicate(jnt_sel, parentOnly=True, renameChildren=True)
+            
+            for i in jnt_IK_dupl:
+                cmds.setAttr(i+".radius", init_jnt_radius*1.25)
+            
+            #ALL IK    
+            circle_IK_list = []
+            first_jnt_sel_pos = cmds.xform(jnt_sel[0], q=True, t=True, ws=True)
+            last_jnt_sel_pos = cmds.xform(jnt_sel[-1], q=True, t=True, ws=True)
+            
+            #IKFK CONTROLLER
+            IKFK_Controller = cmds.circle(n="MAIN_CONTROLLER", r=1.5)
+            self.temp_constraint(IKFK_Controller, jnt_sel[0])
+            IKFK_Controller_distance = self.dist_box.value()
+            
+            if self.control_xyz_combo.currentIndex() == 0:
+                cmds.xform(IKFK_Controller[0], t=[first_jnt_sel_pos[0]+IKFK_Controller_distance, first_jnt_sel_pos[1], first_jnt_sel_pos[2]], ws=True)
+            elif self.control_xyz_combo.currentIndex() == 1:
+                cmds.xform(IKFK_Controller[0], t=[first_jnt_sel_pos[0], first_jnt_sel_pos[1]+IKFK_Controller_distance, first_jnt_sel_pos[2]], ws=True)
+            else:
+                cmds.xform(IKFK_Controller[0], t=[first_jnt_sel_pos[0], first_jnt_sel_pos[1], first_jnt_sel_pos[2]+IKFK_Controller_distance], ws=True)
+            
+            cmds.addAttr(IKFK_Controller, ln="_______", at="enum", k=True, enumName="_______")
+            if self.FK_btn.isChecked():
+                cmds.addAttr(ln="IKFK_SWITCH", at="float", k=True, min=0, max=1, dv=0)
+            cmds.addAttr(ln="STRETCHY", at="float", k=True, min=0, max=1, dv=0)
+            #grouping IKFK_Controller
+            grp1_IKFK_Controller = cmds.group(em=1, n="MAINCONTROLLER_xform")
+            grp2_IKFK_Controller = cmds.group(grp1_IKFK_Controller, n="MAINCONTROLLER_adj")
+            grp3_IKFK_Controller = cmds.group(grp2_IKFK_Controller, n="MAINCONTROLLER_topGr")
+            cnstr_001 = cmds.parentConstraint(IKFK_Controller[0], grp3_IKFK_Controller, mo=0)
+            cmds.delete(cnstr_001)
+            cmds.parent(IKFK_Controller[0], grp1_IKFK_Controller)
+            
+            cmds.parentConstraint(jnt_sel[0], grp1_IKFK_Controller, mo=1)
+            
+            lerp_001 = cmds.createNode("blendColors", n="Switch_STRETCH")
+            cmds.setAttr(lerp_001+".color2R", 1)
+            
+            #IK SPLINE HANDLE
+            if self.IK_spline_rad.isChecked():
+                
+                splineHandle = cmds.ikHandle(sj=jnt_IK_dupl[0], ee=jnt_IK_dupl[-1], sol="ikSplineSolver", numSpans= self.spans.value())
+
+                curve_splineH = cmds.ikHandle(splineHandle[0], q=True, c=True)
+
+                #Get the number of CVs
+                numCV = cmds.getAttr(curve_splineH + ".spans") + cmds.getAttr(curve_splineH + ".degree")
+                cvVert = [f"{curve_splineH}.cv[{i}]" for i in range(numCV)]
+                
+                cluster_list = []
+                
+                #Create Joints and Controllers for Spline
+                for vertex in cvVert:
+                    cluster_node = cmds.cluster(vertex)
+                    cmds.select(d=True)
+                    jnt = cmds.joint(p=(0, 0, 0))
+                    circle_IK = cmds.circle(n="CTRL_IK_001", r=init_jnt_radius*2.5)
+                    cmds.parent(jnt, circle_IK)
+                    #HIDE_ELEMENTS(JNTS & CLUSTERS)
+                    cmds.hide(jnt)
+                    cmds.hide(cluster_node)
+
+                    circle_IK_list.append(circle_IK[0])
+                    cluster_list.append(cluster_node)
+                    
+                    cnstr = cmds.parentConstraint(cluster_node, circle_IK)
+                    cmds.delete(cnstr)
+                    cmds.parentConstraint(jnt, cluster_node)
+                    print(f"Created cluster {cluster_node} for {vertex}")
+                
+                #ARCLEN_TOOL
+                curveInfo_length = cmds.arclen(curve_splineH)
+                curveInfo_node = cmds.createNode("curveInfo", n="IK_CurveInfo_001")
+                cmds.connectAttr(curve_splineH+".worldSpace[0]", curveInfo_node+".inputCurve")
+                
+                #MULTIPLY_DIVIDE
+                multDiv_001 = cmds.createNode("multiplyDivide", n="Equalize_001")
+                cmds.setAttr(multDiv_001+".operation", 2)
+                cmds.connectAttr(curveInfo_node+".arcLength", multDiv_001+".input1X")
+                cmds.setAttr(multDiv_001+".input2X", curveInfo_length)
+                
+                cmds.connectAttr(multDiv_001+".outputX", lerp_001+".color1R")
+                cmds.connectAttr(IKFK_Controller[0]+".STRETCHY", lerp_001+".blender")
+                                        
+            #REG IK
+            elif self.IK_reg_rad.isChecked():
+                ik_handle, ik_effector = cmds.ikHandle(sj=jnt_IK_dupl[0], ee=jnt_IK_dupl[-1], sol="ikRPsolver")
+                IK_control_sj = cmds.circle(nr=[0,1,0], n="CTRL_IKBEGIN", r=init_jnt_radius*2.5)
+                self.temp_constraint(IK_control_sj, jnt_IK_dupl[0])
+                cmds.parentConstraint(IK_control_sj, jnt_IK_dupl[0])
+                
+                IK_control_ee = cmds.circle(nr=[0,1,0], n="CTRL_IKHandle", r=init_jnt_radius*2.5)
+                self.temp_constraint(IK_control_ee, jnt_IK_dupl[-1])
+                cmds.parent(ik_handle, IK_control_ee)
+                
+                locator1 = cmds.spaceLocator(p=(0,0,0), n="START_LOCATOR")
+                locator1_shape = cmds.listRelatives(locator1, shapes=True)[0]
+                cmds.parentConstraint(IK_control_sj, locator1)
+                locator2 = cmds.spaceLocator(p=(0,0,0), n="END_LOCATOR")
+                locator2_shape = cmds.listRelatives(locator2, shapes=True)[0]
+                cmds.parentConstraint(IK_control_ee, locator2)
+                distDim_node = cmds.createNode("distanceDimShape", n="DistMeasure")
+                cmds.connectAttr(locator1_shape+".worldPosition[0]", distDim_node+".startPoint")
+                cmds.connectAttr(locator2_shape+".worldPosition[0]", distDim_node+".endPoint")
+                
+                distDim_value = cmds.getAttr(distDim_node+".distance")
+                
+                distDim_node_grp = cmds.listRelatives(distDim_node, parent=True)[0]
+                
+                cmds.hide(locator1[0])
+                cmds.hide(locator2[0])
+                cmds.hide(distDim_node_grp)
+                
+                IKFK_Controller_distance = cmds.addAttr(IKFK_Controller[0], ln="DISTANCE_DEFAULT", defaultValue=distDim_value, keyable=True)
+                if self.adaptive_Size.isChecked():
+                    distance_list=[]
+
+                    tool_set=[]
+
+                    for i in range(len(jnt_sel)-1):
+                        pos1 = cmds.xform(jnt_sel[i], q=True, t=True, ws=True)
+                        pos2 = cmds.xform(jnt_sel[i+1], q=True, t=True, ws=True)
+                        sl_1 = cmds.spaceLocator(p=pos1)
+                        sl_1_shape = cmds.listRelatives(sl_1, shapes=True)[0]
+                        sl_2 = cmds.spaceLocator(p=pos2)
+                        sl_2_shape = cmds.listRelatives(sl_2, shapes=True)[0]
+                        dim_temp = cmds.createNode("distanceDimShape")
+                        dim_temp_par = cmds.listRelatives(dim_temp, parent=True)[0]
+                        cmds.connectAttr(sl_1_shape+".worldPosition[0]", dim_temp+".startPoint")
+                        cmds.connectAttr(sl_2_shape+".worldPosition[0]", dim_temp+".endPoint")
+                        dist = cmds.getAttr(dim_temp+".distance")
+                        distance_list.append(dist)
+                        
+                        #CLEANING
+                        tool_set.extend(sl_1)
+                        tool_set.extend(sl_2)
+                        tool_set.append(dim_temp)
+                        tool_set.append(dim_temp_par)
+                        
+                    distance_sum = sum(distance_list)
+                    cmds.delete(tool_set)
+                        
+                    distance_sum = sum(distance_list)
+                    cmds.setAttr(IKFK_Controller[0]+".DISTANCE_DEFAULT", distance_sum)
+                    
+                cmds.setAttr(IKFK_Controller[0]+".DISTANCE_DEFAULT", lock=True)
+                
+                multDiv_001 = cmds.createNode("multiplyDivide", n="Equalize_001")
+                cmds.setAttr(multDiv_001+".operation", 2)
+                cmds.connectAttr(distDim_node+".distance", multDiv_001+".input1X")
+                cmds.connectAttr(IKFK_Controller[0]+".DISTANCE_DEFAULT", multDiv_001+".input2X")
+                
+                condition_node = cmds.createNode("condition")
+                cmds.setAttr(condition_node+".operation", 2)
+                cmds.connectAttr(multDiv_001+".outputX", condition_node+".colorIfTrueR")
+                cmds.connectAttr(multDiv_001+".outputX", condition_node+".firstTerm")
+                cmds.setAttr(condition_node+".secondTerm", 1)
+                
+                cmds.connectAttr(condition_node+".outColorR", lerp_001+".color1R")
+                cmds.connectAttr(IKFK_Controller[0]+".STRETCHY", lerp_001+".blender")
+                
+                circle_IK_list.append(IK_control_sj[0])
+                circle_IK_list.append(IK_control_ee[0])
+                
+                cmds.select(d=True)
+                selected_IK = cmds.select(jnt_IK_dupl, ik_handle)
+                
+                if self.poleV_create.isChecked():
+                    ikSel = cmds.ls(sl=1, type="ikHandle")
+                    
+                    pole_Vec_Pos = CreatePoleV.find_perf_vect(self.poleV_dist.value())
+
+                    poleV_control = cmds.circle(n=f"PoleV_CTRL", nr=(0,1,0), c=(0,0,0))
+                    grp1_PoleV = cmds.group(poleV_control, n="PoleV_xform")
+                    grp2_PoleV = cmds.group(grp1_PoleV, n=f"PoleV_adj")
+                    grp3_PoleV = cmds.group(grp2_PoleV, n=f"PoleV_topGr")
+
+                    cmds.xform(grp3_PoleV, t=pole_Vec_Pos, ws=1)
+
+                    cmds.poleVectorConstraint(poleV_control[0], ikSel[0], n="poleV_constraint", w=1)
+                    
+                    poleV_parent = cmds.parentConstraint(IK_control_ee[0], grp1_PoleV, mo=1)
+                    poleV_parent_weight = cmds.parentConstraint(poleV_parent[0], q=True, weightAliasList=True)
+                    
+                    cmds.addAttr(poleV_control[0], ln="________", at="enum", k=True, enumName="_______")
+                    cmds.addAttr(poleV_control[0], ln="PoleVector_Follow", at="float", k=True, min=0, max=1, dv=0)
+                    
+                    cmds.connectAttr(f"{poleV_control[0]}.PoleVector_Follow", f"{poleV_parent[0]}.{poleV_parent_weight[0]}")
+                
+                cmds.select(d=True)
+                
+            selected_axis = self.stretch_combo.currentIndex()
+            
+            if selected_axis == 0:
+                for i in jnt_IK_dupl:
+                    cmds.connectAttr(lerp_001+".outputR", i+".scaleX")
+            
+            elif selected_axis == 1:
+                for i in jnt_IK_dupl:
+                    cmds.connectAttr(lerp_001+".outputR", i+".scaleY")
+            
+            else:
+                for i in jnt_IK_dupl:
+                    cmds.connectAttr(lerp_001+".outputR", i+".scaleZ")
+                
+            #CONSTRAINT EVERYTHING
+            if self.FK_btn.isChecked():
+                for i, j, k in zip(jnt_sel, jnt_IK_dupl, jnt_FK_dupl):
+                    parent_all = cmds.parentConstraint(j,k,i, mo=1)
+                    weight_vals_allJNTS = cmds.parentConstraint(parent_all, q=True, weightAliasList=True)
+                    parent_name = cmds.parentConstraint(parent_all, q=True, name=True)
+                    reverse_node_001 = cmds.createNode("reverse", n="Reverse_ConstraintVal")
+                    cmds.connectAttr(IKFK_Controller[0]+".IKFK_SWITCH", reverse_node_001+".inputX")
+                    #IKFK REVERSE
+                    cmds.connectAttr(reverse_node_001+".outputX", f"{parent_name}.{weight_vals_allJNTS[0]}")
+                    cmds.connectAttr(IKFK_Controller[0]+".IKFK_SWITCH", f"{parent_name}.{weight_vals_allJNTS[1]}")
+                    
+            else:
+                for i, j in zip(jnt_sel, jnt_IK_dupl):
+                    parent_all = cmds.parentConstraint(j, i, mo=1)
+
+            ###GROUPING###
+            #ALLTHEREST
+            #JNTS
+            if self.FK_btn.isChecked():
+                jnts_grp = cmds.group(jnt_IK_dupl[0], jnt_FK_dupl[0], n="JNTS")
+            elif self.FK_btn.isChecked() == False:
+                jnts_grp = cmds.group(jnt_IK_dupl[0], n="JNTS")
+                
+            cmds.hide(jnts_grp)
+            
+            #OVERALL IK
+            circle_IK_topGr_list=[]
+            IK_grp = cmds.group(em=True, n="CTRL_IK")
+            self.temp_constraint(IK_grp, jnt_IK_dupl[0])
+            for i in circle_IK_list:
+                grp1 = cmds.group(em=1, n=i+"_xform")
+                grp2 = cmds.group(grp1, n=i+"_adj")
+                grp3 = cmds.group(grp2, n=i+"_topGr")
+                cnstr = cmds.parentConstraint(i, grp3, mo=0)
+                cmds.delete(cnstr)
+                cmds.parent(i, grp1)
+                cmds.parent(grp3, IK_grp)
+                circle_IK_topGr_list.append(grp3)
+                
+            
+            if self.IK_reg_rad.isChecked():
+                msr_grp = cmds.group(locator1[0], locator2[0], distDim_node_grp, n="MSR_TOOLS")
+                
+                cmds.parent(grp3_PoleV, IK_grp)
+                
+                IK_setup_grp = cmds.group(IK_grp, msr_grp, n="IK_SETUP")
+                cmds.hide(ik_handle)
+                if self.FK_btn.isChecked():
+                    for i in range(len(circle_FK_list)-1):
+                        cmds.parent(circle_FK_topGr_list[i+1], circle_FK_list[i])
+                    FK_setup_grp = cmds.group(circle_FK_topGr_list[0], n="FK_SETUP")
+                    cmds.group(IK_setup_grp, FK_setup_grp, jnts_grp, grp3_IKFK_Controller, n="SETUP")
+                    
+                    for j in circle_FK_topGr_list:
+                        #VISIBILITY FK
+                        cmds.connectAttr(IKFK_Controller[0]+".IKFK_SWITCH", j+".visibility")
+                    for i in circle_IK_topGr_list:
+                        #VISIBILITY IK
+                        reverse_node_004 = cmds.createNode("reverse", n="Reverse_Visibility")
+                        cmds.connectAttr(IKFK_Controller[0]+".IKFK_SWITCH", reverse_node_004+".inputX")
+                        cmds.connectAttr(reverse_node_004+".outputX", i+".visibility")
+                    
+                    #VISIBILITY POLEV
+                    reverse_node_003 = cmds.createNode("reverse", n="Reverse_Visibility_PoleV")
+                    cmds.connectAttr(IKFK_Controller[0]+".IKFK_SWITCH", reverse_node_003+".inputX")
+                    cmds.connectAttr(reverse_node_003+".outputX", grp3_PoleV+".visibility")
+                
+                else:
+                    cmds.group(IK_setup_grp,jnts_grp, grp3_IKFK_Controller, n="SETUP")
+                
+                
+            
+            elif self.IK_spline_rad.isChecked():
+                cluster_grp = cmds.group(em=True, n="CLUSTER_GRP")
+                cmds.hide(cluster_grp)
+                
+                for i in cluster_list:
+                    cmds.parent(i, cluster_grp)
+                    
+                ik_handle_grp = cmds.group(splineHandle[0], n="IKHandle_GRP")
+                splineIK_grp = cmds.group(curve_splineH, ik_handle_grp, n="SplineIK")
+                cmds.hide(ik_handle_grp)
+                cmds.hide(splineIK_grp)
+                                
+                IK_setup_grp = cmds.group(ik_handle_grp, splineIK_grp, cluster_grp, IK_grp, n="IK_SETUP")
+                if self.FK_btn.isChecked():
+                    for i in range(len(circle_FK_list)-1):
+                        cmds.parent(circle_FK_topGr_list[i+1], circle_FK_list[i])
+                    FK_setup_grp = cmds.group(circle_FK_topGr_list[0], n="FK_SETUP")
+                    cmds.group(IK_setup_grp, FK_setup_grp, jnts_grp, grp3_IKFK_Controller, n="SETUP")
+                    
+                    for j in circle_FK_topGr_list:
+                        #VISIBILITY FK
+                        cmds.connectAttr(IKFK_Controller[0]+".IKFK_SWITCH", j+".visibility")
+                    for i in circle_IK_topGr_list:
+                        #VISIBILITY IK
+                        reverse_node_002 = cmds.createNode("reverse", n="Reverse_Visibility")
+                        cmds.connectAttr(IKFK_Controller[0]+".IKFK_SWITCH", reverse_node_002+".inputX")
+                        cmds.connectAttr(reverse_node_002+".outputX", i+".visibility")
+
+                else:
+                    cmds.group(IK_setup_grp, jnts_grp, grp3_IKFK_Controller, n="SETUP")
+                    
+            #IK RENAME
+            for index,i in enumerate(jnt_IK_dupl, start=1):
+                cmds.rename(i, f"JNT_IK_{index:03d}")
+            #FK RENAME
+            for index,i in enumerate(jnt_FK_dupl, start=1):
+                cmds.rename(i, f"JNT_FK_{index:03d}")
+            
+            cmds.warning("SUCCESS: AutoRig Operated!")
+            
+            cmds.undoInfo(closeChunk=True)
+            
+            ###DEBUG###
+            #cmds.warning(f"Your test:{jnt_FK_dupl}")
+            
+def show_ui():
+    shayMakeWindow = EDG707_002()
+    shayMakeWindow.show(dockable=True, dockArea=Qt.LeftDockWidgetArea)
+
+show_ui()
 """
     
     # Decode and save image

@@ -1,6 +1,6 @@
 try:
     from PySide6 import QtWidgets, QtCore, QtGui
-    from PySide6.QtWidgets import QMainWindow, QWidget, QApplication, QDialog, QGridLayout, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QTabWidget, QLabel, QLineEdit, QGroupBox, QDoubleSpinBox, QColorDialog, QButtonGroup, QRadioButton, QSlider, QTextEdit, QDialogButtonBox
+    from PySide6.QtWidgets import QMainWindow, QWidget, QApplication, QDialog, QGridLayout, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QTabWidget, QLabel, QLineEdit, QGroupBox, QDoubleSpinBox, QSpinBox, QColorDialog, QButtonGroup, QRadioButton, QSlider, QTextEdit, QDialogButtonBox, QCheckBox, QComboBox
     from PySide6.QtGui import QColor, QPixmap, QFont, QDrag
     from PySide6.QtCore import Qt, QByteArray, QMimeData, QTimer
     from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
@@ -13,7 +13,7 @@ try:
     import maya.mel as mel
 except ImportError:
     from PySide2 import QtWidgets, QtCore, QtGui
-    from PySide2.QtWidgets import QMainWindow, QWidget, QApplication, QDialog, QGridLayout, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QTabWidget, QLabel, QLineEdit, QGroupBox, QDoubleSpinBox, QColorDialog, QButtonGroup, QRadioButton, QSlider, QTextEdit, QDialogButtonBox
+    from PySide2.QtWidgets import QMainWindow, QWidget, QApplication, QDialog, QGridLayout, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QTabWidget, QLabel, QLineEdit, QGroupBox, QDoubleSpinBox, QSpinBox, QColorDialog, QButtonGroup, QRadioButton, QSlider, QTextEdit, QDialogButtonBox, QCheckBox, QComboBox
     from PySide2.QtGui import QColor, QPixmap, QFont, QDrag
     from PySide2.QtCore import Qt, QByteArray, QMimeData, QTimer
     from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
@@ -112,8 +112,8 @@ class EDG707_002(MayaQWidgetDockableMixin, QMainWindow):
         self.dist_spinBox_UI = CreatePoleV()
         
         #Setup the UI
+        self.adjustSize()
         self.setWindowTitle("Rig Assistant")
-        self.setMaximumSize(400, 600)
         self.setWindowFlag(Qt.WindowType.Tool)
 
         central_widget = QWidget()
@@ -138,7 +138,7 @@ class EDG707_002(MayaQWidgetDockableMixin, QMainWindow):
         #Tab 1
         tab_1 = QWidget()
         tab1_layout = QVBoxLayout(tab_1)
-        
+        #EMOJIS
         emoji_leg = base64.b64decode("8J+mvw==").decode("utf-8")  # ??
         emoji_bone = base64.b64decode("8J+mtA==").decode("utf-8")  # ??
         emoji_ribbon = base64.b64decode("8J+Ol++4jw==").decode("utf-8")  # ???
@@ -146,6 +146,16 @@ class EDG707_002(MayaQWidgetDockableMixin, QMainWindow):
         emoji_controller = base64.b64decode("8J+Org==").decode("utf-8") # ??
         emoji_folder_closed = base64.b64decode("8J+TgQ==").decode("utf-8") # ??
         emoji_color_palette = base64.b64decode("8J+OqA==").decode("utf-8") # ??
+        
+        #AUTORIG
+        AutoRig_GRP = QGroupBox("AUTORIG")
+        AutoRig_GRP.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        AutoRig_GRP_layout = QVBoxLayout(AutoRig_GRP)
+        AutoRig_btn = QPushButton("AUTORIG MANIPULATOR")
+        AutoRig_GRP_layout.addWidget(AutoRig_btn)
+        AutoRig_btn.clicked.connect(self.AutoRig_call)
+        tab1_layout.addWidget(AutoRig_GRP)
         
         #
         jnt_manip_grp = QGroupBox("Joint's Manipulators")
@@ -424,6 +434,11 @@ class EDG707_002(MayaQWidgetDockableMixin, QMainWindow):
         self.rib_wid = Ribbon_Tool(self)
         self.rib_wid.setWindowFlags(Qt.WindowType.Window)
         self.rib_wid.show()
+
+    def AutoRig_call(self):
+        self.rig_widg = AutoRig(self)
+        self.rig_widg.setWindowFlags(Qt.WindowType.Window)
+        self.rig_widg.show()
 
     def show_Rename_Manip(self):
 
@@ -1003,6 +1018,111 @@ class Rename_Manip(QWidget):
         self.close()
         cmds.undoInfo(closeChunk=True)
     
+class AutoRig(MayaQWidgetDockableMixin, QWidget):
+    def __init__(self, parent=None):
+        super(AutoRig, self).__init__(parent)
+        ###SETUP###
+        self.setWindowTitle("AutoRig")
+        self.adjustSize()
+        #self.setFixedSize(self.sizeHint())
+        
+        self.setWindowFlag(Qt.Tool)
+        self.IK_tool_layout = QVBoxLayout()
+        
+        frame = QFrame()
+        frame.setFrameShape(QFrame.Shape.StyledPanel)
+        frame_layout = QVBoxLayout(frame)
+        self.IK_tool_layout.addWidget(frame)
+        
+        group_001 = QGroupBox("AUTORIG")
+        group_001.setStyleSheet("QGroupBox {font-weight: bold;}")
+        
+        frame_layout.addWidget(group_001)
+        group_001_layout = QVBoxLayout(group_001)
+        group_001_layout.setSpacing(10)
+        
+        text_000 = QLabel("<i>PLEASE RENAME CONTROLLERS AND <br>ITS GROUPS BEFORE APPLYING AGIAN</i>")
+        text_000.setAlignment(Qt.AlignCenter)
+        group_001_layout.addWidget(text_000)
+        
+        #FK CHECK
+        FK_btn = QCheckBox("FK Create")
+        FK_btn.setChecked(True)
+        
+        group_001_layout.addWidget(FK_btn)
+        
+        #IK CHECK
+        RadioButton_layout = QHBoxLayout()
+        group_001_layout.addLayout(RadioButton_layout)
+        self.IK_spline_rad = QRadioButton("IK Spline")
+        self.IK_reg_rad = QRadioButton("IK Regular")
+        self.IK_spline_rad.setChecked(True)
+        
+        RadioButton_layout.addWidget(self.IK_spline_rad)
+        RadioButton_layout.addWidget(self.IK_reg_rad)
+        
+        #DISTANCE OF CONTROLLER
+        text_001 = QLabel("Set <b>MAIN CONTROLLER</b> distance:")
+        group_001_layout.addWidget(text_001)
+        
+        #combo
+        distContr_layout = QHBoxLayout()
+        group_001_layout.addLayout(distContr_layout)
+        
+        xyz_combo = QComboBox()
+        xyz_combo.addItem("X")
+        xyz_combo.addItem("Y")
+        xyz_combo.addItem("Z")
+        xyz_combo.setCurrentIndex(0)
+        
+        #distance
+        dist = QDoubleSpinBox()
+        dist.setValue(5)
+        
+        distContr_layout.addWidget(xyz_combo)
+        distContr_layout.addWidget(dist)
+        
+        #stretch
+        text_002 = QLabel("<b>STRETCH</b> joints along:")
+        group_001_layout.addWidget(text_002)
+        
+        stretch_combo = QComboBox()
+        stretch_combo.addItem("X")
+        stretch_combo.addItem("Y")
+        stretch_combo.addItem("Z")
+        stretch_combo.setCurrentIndex(0)
+        
+        group_001_layout.addWidget(stretch_combo)
+        
+        #SPANS
+        self.text_003 = QLabel("Number of <b>SPANS</b>:")
+        group_001_layout.addWidget(self.text_003)
+        
+        self.spans = QSpinBox()
+        self.spans.setValue(1)
+        group_001_layout.addWidget(self.spans)
+        
+        self.setLayout(self.IK_tool_layout)
+
+        # Connect signals to slot
+        self.IK_spline_rad.toggled.connect(self.update_visibility)
+        self.IK_reg_rad.toggled.connect(self.update_visibility)
+        
+        create_btn = QPushButton("CREATE RIG")
+        create_btn.setStyleSheet("QPushButton {font-weight: bold;}")
+        group_001_layout.addWidget(create_btn)
+
+        # Initial state
+        self.update_visibility()
+
+    def update_visibility(self):
+        if self.IK_spline_rad.isChecked():
+            self.text_003.show()
+            self.spans.show()
+        else:
+            self.text_003.hide()
+            self.spans.hide()
+
 def show_ui():
 
     shayMakeWindow = EDG707_002()
